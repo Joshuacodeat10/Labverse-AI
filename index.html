@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WAEC Practical Workbench & AI Examiner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-dark: #16261C;
+    --panel-bg: #FCFAFA;
+    --border-color: #E2DBCB;
+    --text-main: #22221E;
+    --text-muted: #6B6555;
+    --accent-physics: #2B5B88;
+    --accent-chem: #B83A24;
+    --accent-bio: #386A34;
+    --brass: #B8862E;
+    --good: #2D6A35;
+    --bad: #A82B2B;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-dark);
+    font-family: 'Inter', sans-serif;
+    color: var(--text-main);
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* Sidebar Navigation */
+  .sidebar {
+    width: 80px;
+    background: #0E1812;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .brand {
+    color: #F0EAD6;
+    font-family: 'Zilla Slab', serif;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-align: center;
+    margin-bottom: 20px;
+    line-height: 1.3;
+  }
+  .tab-btn {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    border: none;
+    cursor: pointer;
+    font-family: 'Zilla Slab', serif;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 18px 10px;
+    border-radius: 6px 0 0 6px;
+    width: 100%;
+    color: #A09A8A;
+    background: transparent;
+    transition: all 0.2s ease;
+  }
+  .tab-btn:hover { color: #FFF; }
+  .tab-btn.active { background: var(--panel-bg); color: var(--text-main); }
+  .tab-btn[data-subject="physics"].active { border-right: 5px solid var(--accent-physics); }
+  .tab-btn[data-subject="chemistry"].active { border-right: 5px solid var(--accent-chem); }
+  .tab-btn[data-subject="biology"].active { border-right: 5px solid var(--accent-bio); }
+
+  /* Main Workspace */
+  main {
+    flex: 1;
+    background: var(--panel-bg);
+    min-height: 100vh;
+    overflow-y: auto;
+  }
+  header.topbar {
+    padding: 20px 36px;
+    border-bottom: 2px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    background: #FFF;
+  }
+  .topbar-title h1 { font-family: 'Zilla Slab', serif; font-size: 22px; color: var(--text-main); }
+  .topbar-title div { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-muted); }
+
+  .status-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    background: #F0EAD6;
+    color: var(--text-main);
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    font-weight: 600;
+  }
+
+  .panel { display: none; padding: 28px 36px; }
+  .panel.active { display: block; }
+
+  /* Cards & Grid */
+  .card {
+    background: #FFF;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 22px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  }
+  .card h2 {
+    font-family: 'Zilla Slab', serif;
+    font-size: 18px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .card h2 .step-num {
+    background: var(--text-main);
+    color: #FFF;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; }
+  @media(max-width: 960px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  ol.instructions { padding-left: 20px; line-height: 1.8; font-size: 14px; }
+
+  .instruction-banner {
+    background: #FFFBF0;
+    border-left: 4px solid var(--brass);
+    padding: 12px 16px;
+    border-radius: 4px;
+    font-size: 13.5px;
+    font-weight: 500;
+    margin-bottom: 16px;
+  }
+
+  /* Buttons */
+  .btn {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 9px 16px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-physics { background: var(--accent-physics); color: #FFF; }
+  .btn-chem { background: var(--accent-chem); color: #FFF; }
+  .btn-bio { background: var(--accent-bio); color: #FFF; }
+  .btn-outline { background: #FFF; border-color: var(--text-main); color: var(--text-main); }
+  .btn-outline:hover { background: #F4F1EA; }
+
+  /* Controls & Display */
+  .digital-readout {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    background: #111D15;
+    color: #72E88E;
+    border-radius: 6px;
+    padding: 10px 14px;
+    display: inline-block;
+  }
+  .digital-readout span { display: block; font-size: 9px; color: #8BA892; margin-bottom: 2px; }
+
+  /* Pendulum Canvas Rig */
+  .pendulum-box {
+    background: #FDFBF7;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  canvas#pendulumCanvas {
+    background: #FFF;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* Tables */
+  table.lab-table { width: 100%; border-collapse: collapse; font-family: 'IBM Plex Mono', monospace; font-size: 13px; margin-top: 10px; }
+  table.lab-table th, table.lab-table td { border: 1px solid var(--border-color); padding: 8px 10px; text-align: center; }
+  table.lab-table th { background: var(--panel-bg); font-family: 'Inter', sans-serif; font-weight: 600; font-size: 12px; }
+
+  input[type=number], input[type=text], select {
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 5px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    font-size: 13px;
+    width: 90px;
+    text-align: center;
+  }
+  select { width: auto; font-family: 'Inter', sans-serif; }
+
+  /* Graph Canvas */
+  .canvas-wrapper { position: relative; width: 100%; max-width: 480px; margin: 0 auto; }
+  canvas#graphCanvas {
+    background: #FFF;
+    border: 2px solid var(--text-main);
+    border-radius: 4px;
+    cursor: crosshair;
+    touch-action: none;
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Chemistry Titration Rig */
+  .titration-container { display: flex; gap: 40px; align-items: flex-end; justify-content: center; padding: 20px 0; }
+  .burette-tube { width: 28px; height: 220px; border: 2px solid var(--text-main); border-bottom: none; position: relative; background: #FFF; }
+  .burette-fill { position: absolute; bottom: 0; width: 100%; background: #D2E3F1; transition: height 0.1s linear; }
+  .conical-flask {
+    width: 80px; height: 90px;
+    border: 2px solid var(--text-main);
+    border-radius: 0 0 40px 40px;
+    position: relative; background: #FFF;
+    clip-path: polygon(35% 0, 65% 0, 65% 25%, 100% 100%, 0 100%, 35% 25%);
+  }
+  .flask-fill { position: absolute; bottom: 0; width: 100%; height: 50%; transition: background 0.2s ease; }
+
+  /* Biology Test Tubes */
+  .bio-tubes { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+  .tube-item { width: 120px; text-align: center; }
+  .test-tube { width: 32px; height: 90px; border: 2px solid var(--text-main); border-radius: 0 0 16px 16px; margin: 0 auto 10px auto; position: relative; background: #FFF; }
+  .tube-fill { position: absolute; bottom: 0; width: 100%; height: 0%; transition: all 0.5s ease; border-radius: 0 0 14px 14px; }
+
+  /* Feedback Alert Boxes */
+  .feedback {
+    margin-top: 16px;
+    padding: 14px 18px;
+    border-radius: 6px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    background: #F4F8F3;
+    border-left: 4px solid var(--accent-bio);
+  }
+  .feedback.error { background: #FDF3F3; border-left-color: var(--bad); color: var(--bad); }
+  .feedback.info { background: #F2F6FA; border-left-color: var(--accent-physics); }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="brand">WAEC<br>LAB</div>
+  <button class="tab-btn active" data-subject="physics">Physics</button>
+  <button class="tab-btn" data-subject="chemistry">Chemistry</button>
+  <button class="tab-btn" data-subject="biology">Biology</button>
+</div>
+
+<main>
+  <header class="topbar">
+    <div class="topbar-title">
+      <h1>WAEC Interactive Practical Laboratory</h1>
+      <div>STUDENT WORKBENCH & EXAMINER EVALUATION ENGINE</div>
+    </div>
+    <div class="status-badge">AI EXAMINER ACTIVE</div>
+  </header>
+
+  <!-- ===================== PHYSICS MODULE ===================== -->
+  <section id="physics-panel" class="panel active">
+    <div class="grid-2">
+      <div class="card">
+        <h2><span class="step-num">1</span> Practical Instructions</h2>
+        <ol class="instructions">
+          <li>Select a pendulum length <i>L</i> and click <b>Time 20 Oscillations</b>.</li>
+          <li><b>Perform Calculations:</b> Compute period <i>T = t / 20</i> and <i>T<sup>2</sup></i> manually for each trial.</li>
+          <li><b>Plot Graph:</b> Switch canvas modes to plot points (<i>L</i> on x-axis, <i>T<sup>2</sup></i> on y-axis) and draw your line of best fit.</li>
+          <li>Calculate gradient <i>S = &Delta;T<sup>2</sup> / &Delta;L</i> and derive <i>g = 4&pi;<sup>2</sup> / S</i>.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h2><span class="step-num">2</span> Pendulum Animation & Stopwatch</h2>
+        <div class="instruction-banner" id="phys-status">Select pendulum length and start stopwatch.</div>
+        <div id="lenChips" style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;"></div>
+        
+        <!-- Live Animated Pendulum Canvas Rig -->
+        <div class="pendulum-box">
+          <canvas id="pendulumCanvas" width="280" height="170"></canvas>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="digital-readout" id="stopwatchDisplay"><span>STOPWATCH</span>00.00 s</div>
+          <div style="font-family:'IBM Plex Mono'; font-size:12px; font-weight:600;" id="oscCounterDisplay">Cycles: 0 / 20</div>
+        </div>
+
+        <div style="margin-top:14px; display:flex; gap:10px;">
+          <button class="btn btn-physics" id="btnTimeOsc">Time 20 Oscillations</button>
+          <button class="btn btn-outline" id="btnResetPhys">Reset Data</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">3</span> Student Data Table</h2>
+      <table class="lab-table">
+        <thead>
+          <tr>
+            <th>Trial</th>
+            <th><i>L</i> (cm)</th>
+            <th><i>L</i> (m)</th>
+            <th>Recorded <i>t</i> (s)</th>
+            <th>Calculated <i>T = t/20</i> (s)</th>
+            <th>Calculated <i>T<sup>2</sup></i> (s<sup>2</sup>)</th>
+          </tr>
+        </thead>
+        <tbody id="physTableBody"></tbody>
+      </table>
+      <div style="margin-top:12px; display:flex; align-items:center; gap:12px;">
+        <button class="btn btn-outline" id="btnVerifyPhysTable">Verify My Table Calculations</button>
+        <span id="physTableFeedback" style="font-size:13px; font-weight:600;"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">4</span> Canvas Graph & AI Examiner Evaluation</h2>
+      <p style="font-size:13px; margin-bottom:10px;">Active Mode: <strong id="canvasModeLabel">Plot Points</strong></p>
+      
+      <div class="canvas-wrapper">
+        <canvas id="graphCanvas" width="450" height="350"></canvas>
+      </div>
+      
+      <div style="display:flex; gap:10px; margin-top:12px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn btn-outline" id="btnModePoints">Mode: Plot Points</button>
+        <button class="btn btn-outline" id="btnModeLine">Mode: Draw Line of Best Fit</button>
+        <button class="btn btn-outline" id="btnClearCanvas">Clear Canvas</button>
+      </div>
+
+      <div style="margin-top:20px; background:var(--panel-bg); padding:16px; border-radius:6px; border:1px solid var(--border-color);">
+        <h3 style="font-family:'Zilla Slab'; font-size:16px; margin-bottom:10px;">Gradient & Gravity Derivation</h3>
+        <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:center;">
+          <label style="font-size:13px;">Gradient <i>S</i> (s<sup>2</sup>/m): <input type="number" step="0.01" id="userSlope"></label>
+          <label style="font-size:13px;">Calculated <i>g</i> (m/s<sup>2</sup>): <input type="number" step="0.1" id="userG"></label>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="btn btn-physics" id="btnSubmitPhysAI">Submit Graph & Work to AI Examiner</button>
+        </div>
+      </div>
+
+      <div id="physAIFeedback"></div>
+    </div>
+  </section>
+
+  <!-- ===================== CHEMISTRY MODULE ===================== -->
+  <section id="chemistry-panel" class="panel">
+    <div class="grid-2">
+      <div class="card">
+        <h2><span class="step-num">1</span> Acid-Base Titration Workbench</h2>
+        <div class="instruction-banner">Press and hold pour buttons to run Acid into the NaOH flask until color turns clear. Record end-point reading.</div>
+        
+        <div class="titration-container">
+          <div>
+            <div class="burette-tube"><div class="burette-fill" id="buretteLiquid" style="height:100%;"></div></div>
+          </div>
+          <div class="conical-flask"><div class="flask-fill" id="flaskLiquid" style="background:#E33B88;"></div></div>
+        </div>
+
+        <div style="text-align:center;">
+          <div class="digital-readout" id="buretteDisplay"><span>BURETTE READING</span>0.00 cm³</div>
+        </div>
+
+        <div style="margin-top:14px; display:flex; gap:10px; justify-content:center;">
+          <button class="btn btn-chem" id="btnPourFast">Hold Pour (Fast)</button>
+          <button class="btn btn-chem" id="btnPourSlow">Hold Pour (Dropwise)</button>
+          <button class="btn btn-outline" id="btnRecordTitre">Record Titre</button>
+          <button class="btn btn-outline" id="btnResetChem">Reset Burette</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="step-num">2</span> Titration Data & Calculations</h2>
+        <table class="lab-table">
+          <thead>
+            <tr>
+              <th>Trial</th>
+              <th>Final Reading (cm³)</th>
+              <th>Initial Reading (cm³)</th>
+              <th>Volume Used <i>V<sub>A</sub></i> (cm³)</th>
+            </tr>
+          </thead>
+          <tbody id="chemTableBody"></tbody>
+        </table>
+
+        <div style="margin-top:20px; font-size:13.5px; line-height:2;">
+          <p><b>Student Calculations:</b></p>
+          1. Average Concordant Titre <i>V<sub>A</sub></i>: <input type="number" step="0.01" id="userAvgTitre"> cm³<br>
+          2. Calculate NaOH Concentration <i>C<sub>B</sub></i> (using <i>C<sub>A</sub>V<sub>A</sub> / C<sub>B</sub>V<sub>B</sub> = 1</i>, where <i>C<sub>A</sub></i> = 0.100 M, <i>V<sub>B</sub></i> = 25.0 cm³):<br>
+          <input type="number" step="0.0001" id="userConcB"> mol/dm³
+          <div style="margin-top:14px;">
+            <button class="btn btn-chem" id="btnVerifyChem">Verify Chemistry Calculations</button>
+          </div>
+          <div id="chemFeedback"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== BIOLOGY MODULE ===================== -->
+  <section id="biology-panel" class="panel">
+    <div class="card">
+      <h2><span class="step-num">1</span> Qualitative Food Test Workbench</h2>
+      <div class="instruction-banner">Run food tests on the unknown sample solution and observe color changes.</div>
+      <div class="bio-tubes" id="bioTubesContainer"></div>
+      <div style="text-align:center; margin-top:16px;">
+        <button class="btn btn-outline" id="btnResetBio">Reset Food Tests & Sample</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">2</span> Experimental Observations & Inferences</h2>
+      <table class="lab-table">
+        <thead>
+          <tr>
+            <th>Test Conducted</th>
+            <th>Observed Color Change</th>
+            <th>Inference Deduction</th>
+          </tr>
+        </thead>
+        <tbody id="bioTableBody"></tbody>
+      </table>
+      <div style="margin-top:16px;">
+        <button class="btn btn-bio" id="btnSubmitBio">Submit Biology Observations</button>
+      </div>
+      <div id="bioFeedback"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ============================================================
+   GLOBAL CONFIGURATION & NAVIGATION
+   ============================================================ */
+// Place your Google Gemini API Key here for AI Examiner evaluation:
+const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
+
+const rand = (min, max) => Math.random() * (max - min) + min;
+const fmt = (val, dec = 2) => Number(val).toFixed(dec);
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    
+    btn.classList.add('active');
+    const panelId = btn.dataset.subject + '-panel';
+    document.getElementById(panelId).classList.add('active');
+  });
+});
+
+/* ============================================================
+   PHYSICS MODULE LOGIC (WITH REAL-TIME ANIMATED PENDULUM)
+   ============================================================ */
+(function(){
+  const lengths = [90, 80, 70, 60, 50]; // cm
+  let currentIdx = 0;
+  const recordedTrials = [];
+  const g_true = 9.81;
+
+  const lenChips = document.getElementById('lenChips');
+  const tbody = document.getElementById('physTableBody');
+  const btnTime = document.getElementById('btnTimeOsc');
+  const readout = document.getElementById('stopwatchDisplay');
+  const oscCounterDisplay = document.getElementById('oscCounterDisplay');
+
+  // Pendulum Canvas Animation Setup
+  const pCanvas = document.getElementById('pendulumCanvas');
+  const pCtx = pCanvas.getContext('2d');
+  let pendAnimFrame = null;
+  let isOscillating = false;
+  let angle = 0;
+
+  function renderChips() {
+    lenChips.innerHTML = lengths.map((L, i) => {
+      let bg = "transparent", color = "var(--text-main)", border = "var(--border-color)";
+      if (i < recordedTrials.length) { bg = "var(--accent-physics)"; color = "#FFF"; }
+      else if (i === currentIdx) { border = "var(--accent-physics)"; }
+      return `<button style="padding:4px 10px; border-radius:4px; font-size:12px; font-family:'IBM Plex Mono'; border:1.5px solid ${border}; background:${bg}; color:${color}; font-weight:600; cursor:pointer;" onclick="selectPhysLength(${i})">L${i+1} = ${L}cm</button>`;
+    }).join('');
+  }
+
+  window.selectPhysLength = function(i) {
+    if (isOscillating || i < recordedTrials.length) return;
+    currentIdx = i;
+    renderChips();
+    drawPendulum(0, lengths[currentIdx]);
+  };
+
+  function drawPendulum(currAngle, L_cm) {
+    pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+    const pivotX = pCanvas.width / 2;
+    const pivotY = 18;
+
+    // Scale string length on canvas (cm to px)
+    const stringLen = 45 + (L_cm / 100) * 85; 
+    const bobX = pivotX + stringLen * Math.sin(currAngle);
+    const bobY = pivotY + stringLen * Math.cos(currAngle);
+
+    // Support Stand
+    pCtx.strokeStyle = '#6B6555'; pCtx.lineWidth = 3;
+    pCtx.beginPath(); pCtx.moveTo(pivotX - 40, pivotY); pCtx.lineTo(pivotX + 40, pivotY); pCtx.stroke();
+
+    // String
+    pCtx.strokeStyle = '#22221E'; pCtx.lineWidth = 1.5;
+    pCtx.beginPath(); pCtx.moveTo(pivotX, pivotY); pCtx.lineTo(bobX, bobY); pCtx.stroke();
+
+    // Bob
+    pCtx.fillStyle = '#B8862E'; pCtx.strokeStyle = '#22221E'; pCtx.lineWidth = 1.5;
+    pCtx.beginPath(); pCtx.arc(bobX, bobY, 10, 0, Math.PI * 2); pCtx.fill(); pCtx.stroke();
+
+    // Center pivot point
+    pCtx.fillStyle = '#22221E';
+    pCtx.beginPath(); pCtx.arc(pivotX, pivotY, 3, 0, Math.PI * 2); pCtx.fill();
+  }
+
+  drawPendulum(0, lengths[0]);
+
+  btnTime.addEventListener('click', () => {
+    if (currentIdx >= lengths.length || isOscillating) return;
+
+    btnTime.disabled = true;
+    isOscillating = true;
+
+    const L_m = lengths[currentIdx] / 100;
+    const truePeriod = 2 * Math.PI * Math.sqrt(L_m / g_true);
+    const measured_t = (truePeriod * 20) + rand(-0.2, 0.2);
+    
+    let startTime = null;
+    const maxCycles = 20;
+
+    function animate(timestamp) {
+      if (!startTime) startTime = timestamp;
+      const elapsed = (timestamp - startTime) / 1000; // in seconds
+
+      // Physical Angular Frequency w = 2*pi / T
+      const omega = (2 * Math.PI) / truePeriod;
+      const currentAngle = 0.35 * Math.cos(omega * elapsed); // Max amplitude ~20 deg
+
+      drawPendulum(currentAngle, lengths[currentIdx]);
+
+      // Calculate completed cycles
+      const currentCycles = Math.min(maxCycles, Math.floor(elapsed / truePeriod));
+      oscCounterDisplay.textContent = `Cycles: ${currentCycles} / 20`;
+      readout.innerHTML = `<span>STOPWATCH</span>${fmt(elapsed, 2)} s`;
+
+      if (elapsed < measured_t && currentCycles < maxCycles) {
+        pendAnimFrame = requestAnimationFrame(animate);
+      } else {
+        // Animation Complete
+        cancelAnimationFrame(pendAnimFrame);
+        isOscillating = false;
+        drawPendulum(0, lengths[currentIdx]);
+        
+        readout.innerHTML = `<span>STOPWATCH</span>${fmt(measured_t, 2)} s`;
+        oscCounterDisplay.textContent = `Cycles: 20 / 20 (Done)`;
+
+        recordedTrials.push({ L_cm: lengths[currentIdx], L_m, t: measured_t });
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${recordedTrials.length}</td>
+          <td>${lengths[currentIdx]}</td>
+          <td>${fmt(L_m, 2)}</td>
+          <td><strong>${fmt(measured_t, 2)}</strong></td>
+          <td><input type="number" step="0.01" class="user-T" data-t="${measured_t}"></td>
+          <td><input type="number" step="0.01" class="user-T2" data-t="${measured_t}"></td>
+        `;
+        tbody.appendChild(row);
+
+        currentIdx++;
+        renderChips();
+        if (currentIdx < lengths.length) btnTime.disabled = false;
+        document.getElementById('phys-status').textContent = currentIdx < lengths.length ? `Ready for length L${currentIdx+1} = ${lengths[currentIdx]}cm` : "All trials completed! Fill table and plot graph.";
+      }
+    }
+
+    pendAnimFrame = requestAnimationFrame(animate);
+  });
+
+  document.getElementById('btnResetPhys').addEventListener('click', () => {
+    if (pendAnimFrame) cancelAnimationFrame(pendAnimFrame);
+    isOscillating = false;
+    currentIdx = 0;
+    recordedTrials.length = 0;
+    tbody.innerHTML = '';
+    btnTime.disabled = false;
+    readout.innerHTML = `<span>STOPWATCH</span>00.00 s`;
+    oscCounterDisplay.textContent = `Cycles: 0 / 20`;
+    renderChips();
+    drawPendulum(0, lengths[0]);
+    document.getElementById('physTableFeedback').textContent = '';
+  });
+
+  document.getElementById('btnVerifyPhysTable').addEventListener('click', () => {
+    let errors = 0;
+    document.querySelectorAll('.user-T').forEach(input => {
+      const t = parseFloat(input.dataset.t);
+      const expectedT = t / 20;
+      const val = parseFloat(input.value);
+      if (isNaN(val) || Math.abs(val - expectedT) > 0.05) { input.style.borderColor = 'var(--bad)'; errors++; }
+      else { input.style.borderColor = 'var(--good)'; }
+    });
+
+    document.querySelectorAll('.user-T2').forEach(input => {
+      const t = parseFloat(input.dataset.t);
+      const expectedT2 = Math.pow(t / 20, 2);
+      const val = parseFloat(input.value);
+      if (isNaN(val) || Math.abs(val - expectedT2) > 0.08) { input.style.borderColor = 'var(--bad)'; errors++; }
+      else { input.style.borderColor = 'var(--good)'; }
+    });
+
+    const fb = document.getElementById('physTableFeedback');
+    if (errors === 0) { fb.textContent = '✔ All period calculations are accurate!'; fb.style.color = 'var(--good)'; }
+    else { fb.textContent = `✘ ${errors} values are incorrect. Recalculate T = t/20 and T² = T × T.`; fb.style.color = 'var(--bad)'; }
+  });
+
+  renderChips();
+
+  /* GRAPH CANVAS ENGINE WITH RETINA & DPI TOUCH ACCURACY */
+  const canvas = document.getElementById('graphCanvas');
+  const ctx = canvas.getContext('2d');
+  let drawMode = 'points';
+  const plottedPoints = [];
+  let lineStart = null, lineEnd = null, isDrawingLine = false;
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = (rect.width * 0.75) * dpr;
+    ctx.scale(dpr, dpr);
+    redrawGraph();
+  }
+
+  function redrawGraph() {
+    const w = canvas.getBoundingClientRect().width;
+    const h = canvas.getBoundingClientRect().width * 0.75;
+    ctx.clearRect(0, 0, w, h);
+
+    // Grid Lines
+    ctx.strokeStyle = '#EAE5D9'; ctx.lineWidth = 1;
+    for (let x = 40; x < w; x += 30) {
+      ctx.beginPath(); ctx.moveTo(x, 10); ctx.lineTo(x, h - 30); ctx.stroke();
+    }
+    for (let y = 10; y < h - 30; y += 30) {
+      ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(w - 10, y); ctx.stroke();
+    }
+
+    // Coordinate Axes
+    ctx.strokeStyle = '#22221E'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(40, 10); ctx.lineTo(40, h - 30); ctx.lineTo(w - 10, h - 30); ctx.stroke();
+
+    // Axis Labels & Numbers
+    ctx.font = '11px IBM Plex Mono'; ctx.fillStyle = '#22221E';
+    ctx.fillText('T² (s²)', 5, 20);
+    ctx.fillText('L (m)', w - 40, h - 10);
+
+    // Ticks & Numbers on Axes
+    for(let i=0; i<=4; i++) {
+      let yPos = (h - 30) - (i * (h - 50) / 4);
+      ctx.fillText(i.toString(), 22, yPos + 4);
+    }
+    for(let i=0; i<=5; i++) {
+      let xPos = 40 + (i * (w - 60) / 5);
+      ctx.fillText((i*0.2).toFixed(1), xPos - 8, h - 12);
+    }
+
+    // Plotted Points
+    plottedPoints.forEach(p => {
+      ctx.strokeStyle = '#2B5B88'; ctx.lineWidth = 2; ctx.fillStyle = '#2B5B88';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    });
+
+    // Line of Best Fit
+    if (lineStart && lineEnd) {
+      ctx.strokeStyle = '#B83A24'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(lineStart.x, lineStart.y); ctx.lineTo(lineEnd.x, lineEnd.y); ctx.stroke();
+    }
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+  setTimeout(resizeCanvas, 100);
+
+  document.getElementById('btnModePoints').addEventListener('click', () => { drawMode = 'points'; document.getElementById('canvasModeLabel').textContent = 'Plot Points'; });
+  document.getElementById('btnModeLine').addEventListener('click', () => { drawMode = 'line'; document.getElementById('canvasModeLabel').textContent = 'Draw Line of Best Fit'; });
+  document.getElementById('btnClearCanvas').addEventListener('click', () => { plottedPoints.length = 0; lineStart = null; lineEnd = null; redrawGraph(); });
+
+  function getCanvasCoords(e) {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches ? e.touches[0] : (e.changedTouches ? e.changedTouches[0] : null);
+    const clientX = touch ? touch.clientX : e.clientX;
+    const clientY = touch ? touch.clientY : e.clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function handleStart(e) {
+    e.preventDefault();
+    const pos = getCanvasCoords(e);
+    if (drawMode === 'points') { plottedPoints.push(pos); redrawGraph(); }
+    else if (drawMode === 'line') { lineStart = pos; isDrawingLine = true; }
+  }
+
+  function handleMove(e) {
+    if (drawMode === 'line' && isDrawingLine) {
+      e.preventDefault();
+      lineEnd = getCanvasCoords(e);
+      redrawGraph();
+    }
+  }
+
+  function handleEnd() { isDrawingLine = false; }
+
+  canvas.addEventListener('mousedown', handleStart);
+  canvas.addEventListener('mousemove', handleMove);
+  canvas.addEventListener('mouseup', handleEnd);
+
+  canvas.addEventListener('touchstart', handleStart, { passive: false });
+  canvas.addEventListener('touchmove', handleMove, { passive: false });
+  canvas.addEventListener('touchend', handleEnd);
+
+  /* AI EXAMINER EVALUATION ENGINE */
+  document.getElementById('btnSubmitPhysAI').addEventListener('click', async () => {
+    const fb = document.getElementById('physAIFeedback');
+    const userSlope = document.getElementById('userSlope').value;
+    const userG = document.getElementById('userG').value;
+
+    if (!userSlope || !userG) {
+      fb.innerHTML = `<div class="feedback error">Please enter your calculated gradient S and gravity g before submitting!</div>`;
+      return;
+    }
+
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE") {
+      const gNum = parseFloat(userG);
+      const err = Math.abs(gNum - 9.81) / 9.81 * 100;
+      fb.innerHTML = `<div class="feedback info"><b>Offline Rule Evaluation (Add Gemini API Key to Script for AI Vision Grading):</b><br>Calculated g = ${gNum} m/s² (Error: ${fmt(err, 1)}%).<br>${err < 10 ? '✔ Excellent accuracy! Full marks for calculation.' : '✘ High percentage error. Recheck your line gradient triangle.'}</div>`;
+      return;
+    }
+
+    fb.innerHTML = `<div class="feedback info">🤖 AI Practical Examiner is evaluating your canvas plot, scale accuracy, and derived gravity...</div>`;
+
+    try {
+      const base64Img = canvas.toDataURL('image/png').split(',')[1];
+      const payload = {
+        contents: [{
+          parts: [
+            { text: `You are an official WAEC Physics Practical Examiner. Evaluate this student's simple pendulum plot of T² vs Length L.
+                     Student calculated gradient S = ${userSlope} s²/m and derived gravity g = ${userG} m/s².
+                     1. Inspect the canvas image (points alignment, line of best fit).
+                     2. Evaluate calculated g value accuracy against true g = 9.81 m/s².
+                     3. Grade out of 10 with constructive feedback.` },
+            { inline_data: { mime_type: "image/png", data: base64Img } }
+          ]
+        }]
+      };
+
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      
+      if (data.error) throw new Error(data.error.message || "API Call Failed");
+
+      const output = data.candidates[0].content.parts[0].text;
+      fb.innerHTML = `<div class="feedback"><b>AI Examiner Feedback:</b><br>${output.replace(/\n/g, '<br>')}</div>`;
+    } catch (err) {
+      fb.innerHTML = `<div class="feedback error">AI API Error: ${err.message}. Check your API Key configuration in the script.</div>`;
+    }
+  });
+})();
+
+/* ============================================================
+   CHEMISTRY MODULE LOGIC
+   ============================================================ */
+(function(){
+  let trueTitre = rand(22.5, 24.8);
+  let trialCount = 1;
+  let currentReading = 0.0, initialReading = 0.0;
+  const titrationData = [];
+  let animFrame = null;
+
+  const buretteFill = document.getElementById('buretteLiquid');
+  const flaskFill = document.getElementById('flaskLiquid');
+  const buretteDisplay = document.getElementById('buretteDisplay');
+  const tbody = document.getElementById('chemTableBody');
+
+  function updateVisuals() {
+    buretteFill.style.height = (100 - (currentReading / 50) * 100) + '%';
+    buretteDisplay.innerHTML = `<span>BURETTE READING</span>${fmt(currentReading, 2)} cm³`;
+    
+    const poured = currentReading - initialReading;
+    if (poured >= trueTitre) {
+      flaskFill.style.background = 'rgba(255,255,255,0.95)';
+    } else {
+      const alpha = (1 - (poured / trueTitre)) * 0.8 + 0.2;
+      flaskFill.style.background = `rgba(227, 59, 136, ${alpha})`;
+    }
+  }
+
+  function startPouring(speed) {
+    if (animFrame) return;
+    function step() {
+      currentReading = Math.min(50, currentReading + speed);
+      updateVisuals();
+      if (currentReading < 50) animFrame = requestAnimationFrame(step);
+    }
+    animFrame = requestAnimationFrame(step);
+  }
+
+  function stopPouring() {
+    if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  }
+
+  const btnFast = document.getElementById('btnPourFast');
+  const btnSlow = document.getElementById('btnPourSlow');
+
+  ['mousedown', 'touchstart'].forEach(evt => {
+    btnFast.addEventListener(evt, (e) => { e.preventDefault(); startPouring(0.12); });
+    btnSlow.addEventListener(evt, (e) => { e.preventDefault(); startPouring(0.02); });
+  });
+
+  ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(evt => {
+    btnFast.addEventListener(evt, stopPouring);
+    btnSlow.addEventListener(evt, stopPouring);
+  });
+
+  document.getElementById('btnRecordTitre').addEventListener('click', () => {
+    const v = currentReading - initialReading;
+    titrationData.push({ trial: trialCount, final: currentReading, initial: initialReading, v });
+
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${trialCount}</td><td>${fmt(currentReading, 2)}</td><td>${fmt(initialReading, 2)}</td><td>${fmt(v, 2)}</td>`;
+    tbody.appendChild(row);
+
+    if (trialCount < 3) {
+      trialCount++;
+      initialReading = currentReading;
+      updateVisuals();
+    } else {
+      btnFast.disabled = true; btnSlow.disabled = true;
+    }
+  });
+
+  document.getElementById('btnResetChem').addEventListener('click', () => {
+    trueTitre = rand(22.5, 24.8); // Randomize endpoint on reset
+    currentReading = 0.0; initialReading = 0.0; trialCount = 1;
+    titrationData.length = 0;
+    tbody.innerHTML = '';
+    btnFast.disabled = false; btnSlow.disabled = false;
+    updateVisuals();
+    document.getElementById('chemFeedback').innerHTML = '';
+  });
+
+  document.getElementById('btnVerifyChem').addEventListener('click', () => {
+    const userAvg = parseFloat(document.getElementById('userAvgTitre').value);
+    const userConc = parseFloat(document.getElementById('userConcB').value);
+    const fb = document.getElementById('chemFeedback');
+
+    if (titrationData.length === 0) {
+      fb.innerHTML = `<div class="feedback error">Record at least one titration trial first.</div>`;
+      return;
+    }
+
+    const trueAvg = titrationData.reduce((a, b) => a + b.v, 0) / titrationData.length;
+    const trueConc = (0.100 * trueAvg) / 25.0;
+
+    let res = "";
+    if (Math.abs(userAvg - trueAvg) < 0.1) res += "✔ Concordant average titre is accurate!<br>";
+    else res += `✘ Expected Average Titre ≈ ${fmt(trueAvg, 2)} cm³.<br>`;
+
+    if (Math.abs(userConc - trueConc) < 0.002) res += "✔ Concentration calculation C_B is correct! Marks awarded: 4/4";
+    else res += `✘ C_B concentration incorrect. Formula: C_B = (0.100 × ${fmt(userAvg || 0, 2)}) / 25.0`;
+
+    fb.innerHTML = `<div class="feedback">${res}</div>`;
+  });
+})();
+
+/* ============================================================
+   BIOLOGY MODULE LOGIC
+   ============================================================ */
+(function(){
+  let composition = { starch: false, sugar: false, protein: false };
+
+  function randomizeSample() {
+    composition = { starch: Math.random() < 0.5, sugar: Math.random() < 0.5, protein: Math.random() < 0.5 };
+    if (!composition.starch && !composition.sugar && !composition.protein) composition.starch = true;
+  }
+  randomizeSample();
+
+  const tests = [
+    { key: 'starch', name: 'Iodine Test', color: '#1B1B38', posObs: 'Blue-black color' },
+    { key: 'sugar', name: "Benedict's Test", color: '#C84B2C', posObs: 'Brick-red precipitate' },
+    { key: 'protein', name: 'Biuret Test', color: '#6A3D8A', posObs: 'Violet color' }
+  ];
+
+  const container = document.getElementById('bioTubesContainer');
+  const tbody = document.getElementById('bioTableBody');
+
+  function initBioModule() {
+    container.innerHTML = '';
+    tbody.innerHTML = '';
+    document.getElementById('bioFeedback').innerHTML = '';
+
+    tests.forEach(t => {
+      const item = document.createElement('div');
+      item.className = 'tube-item';
+      item.innerHTML = `
+        <div style="font-weight:600; font-size:12px; margin-bottom:6px;">${t.name}</div>
+        <div class="test-tube"><div class="tube-fill" id="bio-fill-${t.key}" style="background:#E2E8F0;"></div></div>
+        <button class="btn btn-bio" style="font-size:11px; padding:5px 10px;" id="bio-btn-${t.key}">Run Test</button>
+      `;
+      container.appendChild(item);
+
+      document.getElementById(`bio-btn-${t.key}`).addEventListener('click', function() {
+        this.disabled = true;
+        const fill = document.getElementById(`bio-fill-${t.key}`);
+        fill.style.height = '65%';
+        const isPresent = composition[t.key];
+        fill.style.background = isPresent ? t.color : '#EAEAEA';
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td><b>${t.name}</b></td>
+          <td>${isPresent ? t.posObs : 'No color change (remains pale yellow/blue)'}</td>
+          <td>
+            <select id="bio-select-${t.key}">
+              <option value="">-- Select Inference --</option>
+              <option value="present">${t.key.toUpperCase()} Present</option>
+              <option value="absent">${t.key.toUpperCase()} Absent</option>
+            </select>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    });
+  }
+
+  document.getElementById('btnResetBio').addEventListener('click', () => {
+    randomizeSample();
+    initBioModule();
+  });
+
+  document.getElementById('btnSubmitBio').addEventListener('click', () => {
+    let score = 0, total = 0;
+    tests.forEach(t => {
+      const sel = document.getElementById(`bio-select-${t.key}`);
+      if (sel) {
+        total++;
+        const expected = composition[t.key] ? 'present' : 'absent';
+        if (sel.value === expected) score++;
+      }
+    });
+
+    const fb = document.getElementById('bioFeedback');
+    if (total === 0) {
+      fb.innerHTML = `<div class="feedback error">Run at least one food test before submitting.</div>`;
+    } else {
+      fb.innerHTML = `<div class="feedback">Score: ${score}/${total} correct inferences recorded. ${score === total ? '✔ Excellent work!' : 'Re-check standard test observations.'}</div>`;
+    }
+  });
+
+  initBioModule();
+})();
+</script>
+</body>
+</html>
