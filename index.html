@@ -6,6 +6,12 @@
 <title>WAEC Practical Workbench & AI Examiner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- KaTeX for rendering math notation in AI Examiner feedback -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<!-- marked.js for rendering the AI Examiner's markdown-formatted feedback -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <style>
   :root {
     --bg-dark: #16261C;
@@ -339,6 +345,27 @@
   }
   .feedback.error { background: #FDF3F3; border-left-color: var(--bad); color: var(--bad); }
   .feedback.info { background: #F2F6FA; border-left-color: var(--accent-physics); }
+
+  /* AI Examiner rich content (markdown + math rendering) */
+  .feedback.examiner { background: #FBFBF7; border-left-color: var(--accent-physics); padding: 18px 20px; }
+  .examiner-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border-color); }
+  .examiner-header b { font-family:'Zilla Slab', serif; font-size:15px; }
+  .examiner-body h1, .examiner-body h2, .examiner-body h3 {
+    font-family:'Zilla Slab', serif; margin:14px 0 6px; color: var(--text-main); line-height:1.3;
+  }
+  .examiner-body h1 { font-size:16px; } .examiner-body h2 { font-size:15px; } .examiner-body h3 { font-size:14px; }
+  .examiner-body p { margin:8px 0; }
+  .examiner-body ul, .examiner-body ol { margin:8px 0 8px 20px; padding:0; }
+  .examiner-body li { margin:4px 0; }
+  .examiner-body strong { color: var(--text-main); font-weight:700; }
+  .examiner-body code { background:#EFEAE0; padding:1px 5px; border-radius:3px; font-family:'IBM Plex Mono', monospace; font-size:12.5px; }
+  .examiner-body table { border-collapse:collapse; margin:10px 0; font-size:13px; }
+  .examiner-body th, .examiner-body td { border:1px solid var(--border-color); padding:5px 10px; }
+  .examiner-score-badge {
+    font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:12.5px;
+    background: var(--accent-physics); color:#fff; padding:3px 10px; border-radius:12px; white-space:nowrap;
+  }
+  .katex { font-size: 1.02em; }
 </style>
 </head>
 <body>
@@ -427,8 +454,10 @@
       <div style="display:flex; gap:10px; margin-top:12px; justify-content:center; flex-wrap:wrap;">
         <button class="btn btn-outline" id="btnModePoints">Mode: Plot Points</button>
         <button class="btn btn-outline" id="btnModeLine">Mode: Draw Line of Best Fit</button>
+        <button class="btn btn-outline" id="btnModeGradient">Mode: Draw Gradient Triangle</button>
         <button class="btn btn-outline" id="btnClearCanvas">Clear Canvas</button>
       </div>
+      <p style="font-size:12px; margin-top:8px; color:var(--text-muted);">Tip: In <i>Draw Gradient Triangle</i> mode, drag along your line of best fit — a right-angle triangle (Δ<i>L</i>, Δ<i>T²</i>) will be drawn and the gradient <i>S</i> and gravity <i>g</i> fields below will auto-fill. You can still edit them afterwards.</p>
 
       <div style="margin-top:20px; background:var(--panel-bg); padding:16px; border-radius:6px; border:1px solid var(--border-color);">
         <h3 style="font-family:'Zilla Slab'; font-size:16px; margin-bottom:10px;">Gradient & Gravity Derivation</h3>
@@ -535,7 +564,7 @@
    GLOBAL CONFIGURATION & NAVIGATION
    ============================================================ */
 // Place your Google Gemini API Key here for AI Examiner evaluation:
-const GEMINI_API_KEY = "AIzaSyD9m2FeohaCcUeXk5FlxfCjJHwly_3uBP8";
+const GEMINI_API_KEY = "AQ.Ab8RN6J6T-VPlhekutzETa4ZXisgexHRA9aUoGu58cmwxm9wvg";
 
 const rand = (min, max) => Math.random() * (max - min) + min;
 const fmt = (val, dec = 2) => Number(val).toFixed(dec);
@@ -735,6 +764,11 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   let drawMode = 'points';
   const plottedPoints = [];
   let lineStart = null, lineEnd = null, isDrawingLine = false;
+  let gradStart = null, gradEnd = null, isDrawingGrad = false;
+
+  // Data ranges represented by the axes (must match the tick loops in redrawGraph)
+  const X_DATA_MAX = 1.0;  // L axis: 0 to 1.0 m
+  const Y_DATA_MAX = 4;    // T² axis: 0 to 4 s²
 
   function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
@@ -789,6 +823,60 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
       ctx.strokeStyle = '#B83A24'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(lineStart.x, lineStart.y); ctx.lineTo(lineEnd.x, lineEnd.y); ctx.stroke();
     }
+
+    // Gradient Triangle (dashed legs showing ΔL and ΔT² for the slope calculation)
+    if (gradStart && gradEnd) {
+      const corner = { x: gradEnd.x, y: gradStart.y };
+      ctx.save();
+      ctx.strokeStyle = '#3E7C4A'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(gradStart.x, gradStart.y); ctx.lineTo(corner.x, corner.y);
+      ctx.lineTo(gradEnd.x, gradEnd.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Hypotenuse (the segment the student dragged along their line of best fit)
+      ctx.strokeStyle = '#3E7C4A'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(gradStart.x, gradStart.y); ctx.lineTo(gradEnd.x, gradEnd.y); ctx.stroke();
+
+      // Endpoint markers
+      [gradStart, gradEnd].forEach(p => {
+        ctx.fillStyle = '#3E7C4A';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // Labels
+      ctx.font = '11px IBM Plex Mono'; ctx.fillStyle = '#3E7C4A';
+      ctx.fillText('ΔL', (gradStart.x + corner.x) / 2 - 8, corner.y + 14);
+      ctx.fillText('ΔT²', corner.x + 6, (corner.y + gradEnd.y) / 2);
+      ctx.restore();
+    }
+  }
+
+  /* Converts a canvas-pixel point to (L, T²) data coordinates, based on the axis
+     scales drawn in redrawGraph (x: 0–X_DATA_MAX over 40..w-10, y: 0–Y_DATA_MAX over 20..h-30). */
+  function pixelToData(p, w, h) {
+    return {
+      L: ((p.x - 40) / (w - 60)) * X_DATA_MAX,
+      T2: (((h - 30) - p.y) / (h - 50)) * Y_DATA_MAX
+    };
+  }
+
+  function computeGradientFromTriangle() {
+    const w = canvas.getBoundingClientRect().width;
+    const h = canvas.getBoundingClientRect().width * 0.75;
+    const a = pixelToData(gradStart, w, h);
+    const b = pixelToData(gradEnd, w, h);
+    const deltaL = b.L - a.L;
+    const deltaT2 = b.T2 - a.T2;
+
+    if (Math.abs(deltaL) < 1e-6) return; // avoid divide-by-zero on a near-vertical drag
+
+    const S = deltaT2 / deltaL;
+    const g = (4 * Math.PI * Math.PI) / S;
+
+    document.getElementById('userSlope').value = S.toFixed(3);
+    document.getElementById('userG').value = g.toFixed(2);
   }
 
   window.addEventListener('resize', resizeCanvas);
@@ -796,7 +884,12 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
   document.getElementById('btnModePoints').addEventListener('click', () => { drawMode = 'points'; document.getElementById('canvasModeLabel').textContent = 'Plot Points'; });
   document.getElementById('btnModeLine').addEventListener('click', () => { drawMode = 'line'; document.getElementById('canvasModeLabel').textContent = 'Draw Line of Best Fit'; });
-  document.getElementById('btnClearCanvas').addEventListener('click', () => { plottedPoints.length = 0; lineStart = null; lineEnd = null; redrawGraph(); });
+  document.getElementById('btnModeGradient').addEventListener('click', () => { drawMode = 'gradient'; document.getElementById('canvasModeLabel').textContent = 'Draw Gradient Triangle'; });
+  document.getElementById('btnClearCanvas').addEventListener('click', () => {
+    plottedPoints.length = 0; lineStart = null; lineEnd = null; gradStart = null; gradEnd = null;
+    document.getElementById('userSlope').value = ''; document.getElementById('userG').value = '';
+    redrawGraph();
+  });
 
   function getCanvasCoords(e) {
     const rect = canvas.getBoundingClientRect();
@@ -811,6 +904,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     const pos = getCanvasCoords(e);
     if (drawMode === 'points') { plottedPoints.push(pos); redrawGraph(); }
     else if (drawMode === 'line') { lineStart = pos; isDrawingLine = true; }
+    else if (drawMode === 'gradient') { gradStart = pos; gradEnd = null; isDrawingGrad = true; }
   }
 
   function handleMove(e) {
@@ -818,10 +912,20 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
       e.preventDefault();
       lineEnd = getCanvasCoords(e);
       redrawGraph();
+    } else if (drawMode === 'gradient' && isDrawingGrad) {
+      e.preventDefault();
+      gradEnd = getCanvasCoords(e);
+      redrawGraph();
     }
   }
 
-  function handleEnd() { isDrawingLine = false; }
+  function handleEnd() {
+    isDrawingLine = false;
+    if (isDrawingGrad) {
+      isDrawingGrad = false;
+      if (gradStart && gradEnd) computeGradientFromTriangle();
+    }
+  }
 
   canvas.addEventListener('mousedown', handleStart);
   canvas.addEventListener('mousemove', handleMove);
@@ -860,7 +964,12 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
                      Student calculated gradient S = ${userSlope} s²/m and derived gravity g = ${userG} m/s².
                      1. Inspect the canvas image (points alignment, line of best fit).
                      2. Evaluate calculated g value accuracy against true g = 9.81 m/s².
-                     3. Grade out of 10 with constructive feedback.` },
+                     3. Grade out of 10 with constructive feedback.
+
+                     Formatting rules for your response:
+                     - Respond in Markdown (use short headings, **bold**, and bullet/numbered lists to organize the critique).
+                     - Write every formula or symbol (e.g. gradient, g, T², percentage error) as LaTeX using $...$ for inline math or $$...$$ for standalone equations, instead of plain-text notation like T^2 or 4pi^2/S.
+                     - On the very first line, output ONLY the score in this exact format: "Score: X/10" (no other text on that line), then a blank line, then the full critique below it.` },
             { inline_data: { mime_type: "image/png", data: base64Img } }
           ]
         }]
@@ -876,11 +985,45 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
       if (data.error) throw new Error(data.error.message || "API Call Failed");
 
       const output = data.candidates[0].content.parts[0].text;
-      fb.innerHTML = `<div class="feedback"><b>AI Examiner Feedback:</b><br>${output.replace(/\n/g, '<br>')}</div>`;
+      renderExaminerFeedback(fb, output);
     } catch (err) {
       fb.innerHTML = `<div class="feedback error">AI API Error: ${err.message}. Check your API Key configuration in the script.</div>`;
     }
   });
+
+  /* Renders AI Examiner output as formatted markdown with LaTeX math, plus a score badge. */
+  function renderExaminerFeedback(fb, rawText) {
+    let text = rawText.trim();
+    let scoreLabel = '';
+    const scoreMatch = text.match(/^Score:\s*([\d.]+\s*\/\s*10)\s*\n+/i);
+    if (scoreMatch) {
+      scoreLabel = scoreMatch[1].replace(/\s+/g, '');
+      text = text.slice(scoreMatch[0].length);
+    }
+
+    const bodyHtml = (window.marked ? marked.parse(text) : text.replace(/\n/g, '<br>'));
+
+    fb.innerHTML = `
+      <div class="feedback examiner">
+        <div class="examiner-header">
+          <b>🤖 AI Examiner Feedback</b>
+          ${scoreLabel ? `<span class="examiner-score-badge">Score: ${scoreLabel}</span>` : ''}
+        </div>
+        <div class="examiner-body">${bodyHtml}</div>
+      </div>`;
+
+    if (window.renderMathInElement) {
+      renderMathInElement(fb, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false
+      });
+    }
+  }
 })();
 
 /* ============================================================
